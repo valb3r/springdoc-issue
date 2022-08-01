@@ -14,6 +14,7 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
+import javax.persistence.OneToOne;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 
@@ -43,6 +44,9 @@ public class Product {
     private String description;
 
     private String categoriesList;
+
+    @OneToOne
+    private Product related;
 
     @OneToMany(mappedBy = "product")
     private Collection<ProductItem> items;
