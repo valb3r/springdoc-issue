@@ -1,0 +1,88 @@
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.Dockerfile
+
+plugins {
+	id 'org.springframework.boot' version '2.7.2'
+	id 'io.spring.dependency-management' version '1.0.12.RELEASE'
+	id 'com.bmuschko.docker-remote-api' version '7.4.0'
+	id 'java'
+}
+
+group = 'com.valb3r'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-rest'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+	runtimeOnly 'com.h2database:h2'
+	implementation 'org.flywaydb:flyway-core:8.5.13'
+
+	implementation 'org.springdoc:springdoc-openapi-ui:1.6.9'
+	implementation 'org.springdoc:springdoc-openapi-data-rest:1.6.9'
+
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+}
+
+
+ext.commitSha = {->
+	'git rev-parse --verify --short HEAD'.execute().text.trim()
+}
+
+ext.dockerBuildDir = 'build/docker/'
+
+test {
+	useJUnitPlatform()
+}
+
+bootJar {
+	enabled = true
+}
+
+jar {
+	version = project.version
+	enabled = true
+}
+
+task syncJar(type: Copy) {
+	dependsOn bootJar
+	from "${buildDir}/${libsDirName}"
+	into dockerBuildDir
+}
+
+task createDockerfile(type: Dockerfile) {
+	def cmd = "/app/warehousee-${commitSha()}.jar";
+	from 'azul/zulu-openjdk-alpine:17'
+	label(['maintainer': 'valb3r'])
+	workingDir("/app")
+	copyFile(bootJar.archiveFileName.get(), cmd)
+	runCommand("echo 'java -jar ${cmd}' >> run.sh && chmod +x run.sh")
+	entryPoint('sh')
+	defaultCommand('./run.sh')
+	exposePort(8080)
+}
+
+
+task buildImage(type: DockerBuildImage) {
+	dependsOn createDockerfile, syncJar
+	inputDir.set(project.file(dockerBuildDir))
+	images.add("warehousee/warehousee:${commitSha()}")
+}
+
+task printCommitSha {
+	println "COMMIT:${commitSha()}"
+}
